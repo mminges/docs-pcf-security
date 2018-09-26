@@ -9,12 +9,15 @@ For information about rotating IPsec certificates, see [Rotating IPsec Certifica
 
 ## <a id='expiration'></a> Plan for Certificate Expiration
 
-CA certificates expire 2 years after creation, and root certificates expire after 4 years. Because CA certificates do not last as long as root certificates, you can rotate CA certificates without creating and applying a new root certificate.
+Most leaf certificates expire 2 years after creation, and Ops Manager's root CA expires after 4 years. Because leaf certificates do not last as long as the root CA, you can rotate just leaf certificates without creating and applying a new root. Rotating leaf certificates is easier than rotating the Ops Manager root CA.
 
-Depending on which certificates are due to expire, use one of the following approaches to certificate rotation:
+To find out if you need to rotate the Ops Manager root CA, follow [Check Ops Manager Root CA Expiration]. If the Ops Manager root CA does not expire soon, you should [Check Non-Root Certificate Expirations].
 
 * [Rotate Configurable Certificates](#rotate-config) or [Rotate Non-Configurable Certificates](#rotate-non-config)
 * [Manage and Rotate Root Certificates](#rotate-root)
+
+
+https://pcf.artesia.cf-app.com/api/v0/certificate_authorities
 
 ### <a id='config-cert-expiry'></a> Check Configurable Certificate Expiration Dates
 
@@ -265,11 +268,20 @@ The API returns a successful response.
 1. Navigate to Ops Manager, click **Review Pending Changes**, and click **Apply Changes**.
 
 
-## <a id='rotate-root'></a> Manage and Rotate Root Certificates
+## <a id='other'></a> Other Certificate Operations
 
 To manage and retrieve information about certificates in your deployment, use the API calls in this section.
 
 Perform the steps in the [Using Ops Manager API](../../customizing/ops-man-api.html) topic to target and authenticate with the Ops Manager User Account and Authentication (UAA) server. Record your Ops Manager access token, and use it for `YOUR-UAA-ACCESS-TOKEN`.
+
+### <a id='generate-rsa-certs'></a> Generate a Single RSA Certificate
+
+To generate and return a new RSA certificate signed by the root CA, use `curl` to make the following API call:
+<pre>
+$ curl "https<span>:</span>//OPS-MAN-FQDN/api/v0/certificates/generate \
+      -X POST \
+      -H "Authorization: Bearer YOUR-UAA-ACCESS-TOKEN"
+</pre>
 
 ### <a id='root-certs'></a> Retrieve the Root Certificate
 
@@ -287,18 +299,12 @@ $ curl "https<span>:</span>//OPS-MAN-FQDN/api/v0/security/root\_ca\_certificate 
       -H "Authorization: Bearer YOUR-UAA-ACCESS-TOKEN"
 </pre>
 
-### <a id='generate-rsa-certs'></a> Retrieve and Generate RSA Certificates
+### <a id='list-rsa-certs'></a> List all RSA Certificates
 
-To generate and return a new RSA certificate signed by the root CA, use `curl` to make the following API call:
-<pre>
-$ curl "https<span>:</span>//OPS-MAN-FQDN/api/v0/certificates/generate \
-      -X POST \
-      -H "Authorization: Bearer YOUR-UAA-ACCESS-TOKEN"
-</pre>
-
-To return metadata from all deployed RSA certificates signed by the root CA, use `curl` to make the following API call:
+To return metadata from all deployed RSA certificates visible to Ops Manager, except the root CAs, use `curl` to make the following API call:
 <pre>
 $ curl "https<span>:</span>//OPS-MAN-FQDN/api/v0/deployed/certificates \
       -X GET \
       -H "Authorization: Bearer YOUR-UAA-ACCESS-TOKEN"
 </pre>
+
