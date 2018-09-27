@@ -3,40 +3,71 @@ title: Managing TLS Certificates
 owner: OpsMan
 ---
 
-This topic describes how to manage Certificate Authority (CA) certificates in your deployment, including how to determine when your CA certificates expire, and how to regenerate and rotate both configurable and non-configurable CA certificates.
+This topic describes how to manage internal Certificate Authorities (CAs) and leaf certificates in Pivotal Cloud Foundry (PCF), including how to determine when these two types of certificates ("certs") expire, and how to regenerate and rotate both configurable and non-configurable certs.
+
+These internal CAs issue the certificates that enable PCF internal components to communicate with each other securely, using TLS.
 
 For information about rotating IPsec certificates, see [Rotating IPsec Certificates](../../../addon-ipsec/1-8/credentials.html).
 
-## <a id='expiration'></a> Plan for Certificate Expiration
+For information about trusting third-party certificates across the platform, for both apps hosted on PCF and PCF components, see [Setting Trusted Certificates](../../customizing/trusted-certificates.html).
 
-Most leaf certificates expire 2 years after creation, and Ops Manager's root CA expires after 4 years. Because leaf certificates do not last as long as the root CA, you can rotate just leaf certificates without creating and applying a new root. Rotating leaf certificates is easier than rotating the Ops Manager root CA.
+## <a id='intro'></a> Introduction
 
-To find out if you need to rotate the Ops Manager root CA, follow [Check Ops Manager Root CA Expiration]. If the Ops Manager root CA does not expire soon, you should [Check Non-Root Certificate Expirations].
+To keep PCF running, you must periodically check for certs that will expire soon, and rotate them if they are.
 
-* [Rotate Configurable Certificates](#rotate-config) or [Rotate Non-Configurable Certificates](#rotate-non-config)
-* [Manage and Rotate Root Certificates](#rotate-root)
+Four main types of PCF internal certs require rotation:
+
+* The Ops Manager root CA
+
+* Non-configurable certs
+
+* Configurable certs
+
+* Tile certs including PAS and PKS...
+
+Ops Manager's root CA expires after four years after creation, but most leaf certificates in PCF expire after two years. 
+
+Rotating the root CA also regenerates most leaf certs, but you can rotate leaf certs without rotating the Ops Manager root CA, and the process of rotating just the leaf certs takes less time than creating and applying a new root certificate. 
+
+To check expiration and possibly rotate the Ops Manager root CA, follow [Check Expiration of and Rotate Ops Manager Root CA](#root-check-rotate).
+
+If the Ops Manager root CA does not expire soon, you should [Check Expiration of and Rotate Leaf Certificates only](#leaf-check-rotate).
+
+* [Rotate Configurable CAs](#rotate-config) or [Rotate Non-Configurable CAs](#rotate-non-config)
+* [Manage and Rotate Root CAs](#rotate-root)
 
 
 https://pcf.artesia.cf-app.com/api/v0/certificate_authorities
 
-### <a id='config-cert-expiry'></a> Check Configurable Certificate Expiration Dates
+### <a id='root-expiry'></a> Check Ops Manager Root CA Expiration Date
 
-To retrieve information about the expiration dates for CA certificates in your deployment, do the following:
+1. To retrieve the Ops Manager root CA, use `curl` to make an Ops Manager API call to the `https://OPS-MAN-FQDN/api/v0/certificate_authorities` endpoint. For example:
+    <pre class='terminal'>
+    $ curl "https<span>:</span>//OPS-MAN-FQDN/api/v0/certificate_authorities" \
+          -H "Authorization: Bearer YOUR-UAA-ACCESS-TOKEN"
+    </pre>
 
-1. Navigate to **UAA > SAML Service Provider Credentials** in your PAS tile.
+1. To make the JSON output more readable, you can pipe it to [jq](https://stedolan.github.io/jq/) or another text editor with JSON formatting.
 
-1. Copy the contents of the **SAML Service Provider Credentials** field into a temporary file such as `test.pem`.
+1. In the `certificate_authorities` list returned, if there is more than one, find the CA with `"active": true`.
 
-1. Run the command to validate the expiration time on the certificate. For example:
-<pre class='terminal'>$ openssl x509 -enddate -noout -in test.pem 
-notAfter=Dec  7 21:01:04 2017 GMT</pre>
+1. To determine its expiration date of the active CA, refer to its `expires_on` value. For example, the root CA shown below expires on September 5, 2019:
+    <pre class='terminal'>
+{
+  "certificate\_authorities": [
+    {
+      "guid": "9c9a110c8f82a1e4aaca",
+      "issuer": "Pivotal",
+      "created\_on": "2017-09-05T22:47:53Z",
+      "expires\_on": "2019-09-05T22:47:53Z",
+      "active": true,
+      "cert_pem": "\-\-\-\-\-BEGIN CERTIFICATE\-\-\-\-\-\[...]
+      \n-----END CERTIFICATE\-\-\-\-\-\n"
+    </pre>
 
-Once you have completed the above procedure, find the certificate with the `uaa.service_provider_key_credentials` property and validate its expiration. For example:
-<code>"field "property\_reference":".uaa.service\_provider\_key\_credentials"..."valid\_until":"2019-06-14T11:37:11Z"</code>
 
-If the certificate is nearing expiration, you must regenerate and rotate it.
+### <a id='non-config-cert-expiry'></a> Check Non-Configurable CA Expiration Dates
 
-### <a id='non-config-cert-expiry'></a> Check Non-Configurable Certificate Expiration Dates
 
 The non-configurable certificates in your deployment expire every two years. To retrieve information about the expiration dates for RSA and CA certificates in your deployment, do the following:
 
@@ -53,7 +84,7 @@ The non-configurable certificates in your deployment expire every two years. To 
     Replace `YOUR-UAA-ACCESS-TOKEN` with the <code>access\_token</code> value you recorded in the previous step.
 
 
-## <a id='config'></a> Configurable Certificates
+## <a id='config'></a> Configurable CAs
 
 To secure internal communication between components, PCF uses two kinds of configurable certificates:
 
@@ -308,3 +339,36 @@ $ curl "https<span>:</span>//OPS-MAN-FQDN/api/v0/deployed/certificates \
       -H "Authorization: Bearer YOUR-UAA-ACCESS-TOKEN"
 </pre>
 
+### <a id='config-cert-expiry'></a> Check Expirations of and Rotate Configurable Certificates
+
+We recommend you only rotate configurable certificates as part of one of the above non-configurable rotation procedures.  If you're absolutely sure that there are no other certificates that need rotation, you can run this section by itself by simply applying changes at the end.
+
+Some PCF runtimes and components require operators to provide their own certificates, for example for terminating SSL traffic to the PAS routing tier. The Ops Manager interface lets you generate these in place or paste in your own. These are _configurable certificates_.
+
+While it is your responsibility to provide and manage these certificates, Ops Manager can give you a list of ones that will soon expire as follows:
+
+1. Perform the steps in the [Using Ops Manager API](../../customizing/ops-man-api.html) topic to target and authenticate with the Ops Manager User Account and Authentication (UAA) server. Record your Ops Manager access token, and use it for `YOUR-UAA-ACCESS-TOKEN`.
+
+1. To check the system for certificates that expire within a given time interval, use `curl` to make an API call.<br><br>
+    Use the `https://OPS-MAN-FQDN/api/v0/deployed/certificates?expires_within=TIME` endpoint, replacing `TIME` with an integer and a letter code.
+    Valid letter codes are `d` for days, `w` for weeks, `m` for months, and `y` for years.<br><br>
+    For example, run the following command to search for certificates expiring within six months:
+    <pre>
+    $ curl "https<span>:</span>//OPS-MAN-FQDN/api/v0/deployed/certificates?expires\_within=6m" \
+          -H "Authorization: Bearer YOUR-UAA-ACCESS-TOKEN"
+    </pre>
+    Replace `YOUR-UAA-ACCESS-TOKEN` with the <code>access\_token</code> value you recorded in the previous step.
+
+1. Find _only_ the certificates with `"configurable": true`, such as this certificate:
+```
+    {
+      "configurable": true,
+      "property_reference": ".properties.networking_poe_ssl_certs[0].certificate",
+      "product_guid": "cf-36066831c119c39736d3",
+      ...
+    },
+```
+
+If any configurable certificates are found above, you'll need to locate these certificates inside of the ops manager interface and provide (or generate) a new value for each.  The `product_guid` field helps you locate which tile the configurable certificate belongs to, but you might have to check each form page to find where the certificate appears. We suggest using the `property_reference` field as a hint for where to start looking.
+
+After providing new values for these configurable certificates continue the rotating non-configurable credentials procedure that you're in the middle of.
