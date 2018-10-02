@@ -3,9 +3,11 @@ title: Managing TLS Certificates
 owner: OpsMan
 ---
 
-This topic describes how to manage internal Certificate Authorities (CAs) and leaf certificates in Pivotal Cloud Foundry (PCF), including how to determine when these two types of certificates ("certs") expire and how to regenerate and rotate them when expiration is soon.
+This topic describes how to manage internal Certificate Authorities (CAs) and leaf certificates in Pivotal Cloud Foundry (PCF) that are stored or managed by Ops Manager. It includes:
 
-Internal certificates enable PCF internal components to communicate with each other securely, using TLS. Internal CAs issue intermediate and leaf-level certs in a [chain of trust](https://tools.ietf.org/html/rfc8446).
+* How to check expiration dates for specific types of CAs and certificates ("certs").
+* How to rotate specific types of CAs and certs.
+* A [master procedure](#check-and-rotate) for checking and rotating all CAs and certs in Ops Manager that require manual checking and rotation.
 
 For information about rotating IPsec certificates, see [Rotating IPsec Certificates](../../../addon-ipsec/1-8/credentials.html).
 
@@ -13,7 +15,9 @@ For information about using trusted third-party certificates for both apps hoste
 
 ## <a id='intro'></a> Introduction
 
-To keep PCF running, you must check for certs that are set to expire soon, and rotate them before they expire. To do this, run the [Check and Rotate Certs](#check-and-rotate) procedure periodically, or when records indicate that your PCF deployment uses certs that may be approaching expiration.
+Internal certificates enable PCF internal components to communicate with each other securely, using TLS. Internal root and intermediate CAs issue these leaf-level certs in a [chain of trust](https://tools.ietf.org/html/rfc8446).
+
+To keep PCF running, you must keep track of which certs are set to expire soon, and rotate them before they expire. To do this, you can run the [Check and Rotate Certs](#check-and-rotate) procedure.
 
 ### <a id='types'></a> Certificate Types
 
@@ -38,16 +42,18 @@ Ops Manager's root CA expires after four years after creation, but most non-conf
 
 Rotating the Ops Manager root CA automatically rotates all configurable certs, but a shorter and easier procedure rotates only the configurable certs, without also rotating the root CA.
 
-The following master procedure uses the procedures below checks expiration dates of different types of internal certs and rotates them only as necessary:
+The following master procedure checks expiration dates of different types of internal certs and rotates them only as necessary. You can run this procedure periodically, or when records show that your deployment is currently using certs that expire soon:
 
-1. [Check Ops Manager Root CA Expiration Date](#root-expiry)
+1. Follow the [Check Ops Manager Root CA Expiration Date](#root-expiry) procedure and record your root CA expiration date.
 
-1. [Check Leaf Certificate Expiration Dates](#leaf-expiry)
+1. Follow the [Check Leaf Certificate Expiration Dates](#leaf-expiry) procedure and record any leaf certs that are expiring soon.
 
-1. Make decisions about what procedure to do next
-  - If you see known unrotatable names, call us because those won't auto rotate
-  - Otherwise if the root is expiring do the full rotate
-  - Otherwise just rotate the leaves
+1. Follow the [Identify Non-Configurable, Configurable, and Unrotatable Leaf Certs](#unrotatable) to determine which procedures to follow in order to rotate your leaf certs.
+
+1. Proceed as follows to rotate your certs as needed:
+  1. If you have leaf certs expiring soon that cannot be rotated using the Ops Manager API, call Pivotal Support.
+  1. If your root CA expires soon, follow the [Regenerate and Rotate CAs and Certificates](#rotate-ca) procedure.
+  1. If your leaf certs expire soon, but not your root CA, follow the [Rotate Leaf Certificates](#rotate-leaf) procedure.
 
 ## <a id='root-expiry'></a> Check Ops Manager Root CA Expiration Date
 
@@ -151,7 +157,7 @@ To rotate non-configurable certificates without creating a new root certificate,
 <p class='note'><strong>Note:</strong> The <a href="#rotate-ca">Regenerate and Rotate CA Certificates</a> procedure does not work when your certificates have already expired.<br>
 If the <a href="#non-config-cert-expiry">Check Non-Configurable Certificate Expiration Dates</a> procedure indicates that your certificates have expired, contact <a href="https://support.pivotal.io/">Pivotal Support</a> for guidance.</p>
 
-### <a id='rotate-ca'></a> Regenerate and Rotate CA Certificates
+### <a id='rotate-ca'></a> Regenerate and Rotate CAs and Certificates
 
 <p class="note warning"><strong>WARNING:</strong> You must complete the procedures in this topic in the exact order specified below. Otherwise, you risk doing damage to your deployment.</p>
 
